@@ -23,7 +23,7 @@ function protectResumeColumn() {
   const emailRange = sheet.getRange(2, emailColumn, lastRow - 1, 1);
   const emails = emailRange.getValues().flat();
 
-  const coordinators = ['rvit22bec036.rvitm@rvei.edu.in'];
+  const coordinators = ['rvit22bec036.rvitm@rvei.edu.in','rvitm2026rv@rvei.edu.in','spc.rvitm@rvei.edu.in'];
   const owner = Session.getEffectiveUser().getEmail();
 
   let processedCount = 0;
