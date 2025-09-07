@@ -1,8 +1,8 @@
 function protectResumeColumn() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getActiveSheet();
-  const resumeColumn = 3; // Column C   
-  const emailColumn = 7;  // Column G     column with students college email
+  const resumeColumn = 3; // Column C     give resume column nuber
+  const emailColumn = 7;  // Column G     give column number with college-email id
 
   // Clear ALL existing protections
   const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
@@ -26,56 +26,68 @@ function protectResumeColumn() {
   const coordinators = ['rvit22bec036.rvitm@rvei.edu.in'];
   const owner = Session.getEffectiveUser().getEmail();
 
-  const unprotectedRanges = [];
+  let processedCount = 0;
+  const BATCH_SIZE = 20; // Process 20 at a time
 
-  // Protect each resume cell
-  emails.forEach((email, index) => {
-    if (!email || typeof email !== 'string') return;
+  // Process in batches with delays - ONLY INDIVIDUAL CELL PROTECTIONS
+  for (let i = 0; i < emails.length; i += BATCH_SIZE) {
+    const batch = emails.slice(i, i + BATCH_SIZE);
 
-    const cleanEmail = email.toString().trim().toLowerCase();
-    if (!cleanEmail) return;
+    batch.forEach((email, batchIndex) => {
+      if (!email || typeof email !== 'string') return;
 
-    const row = index + 2;
-    const cell = sheet.getRange(row, resumeColumn);
+      const cleanEmail = email.toString().trim().toLowerCase();
+      if (!cleanEmail) return;
 
-    try {
-      const protection = cell.protect()
-        .setDescription(`Protected: ${cleanEmail}`);
+      const row = i + batchIndex + 2;
+      const cell = sheet.getRange(row, resumeColumn);
 
-      // Remove any existing editors first
-      const currentEditors = protection.getEditors();
-      if (currentEditors.length > 0) {
-        protection.removeEditors(currentEditors);
+      try {
+        const protection = cell.protect()
+          .setDescription(`Protected: ${cleanEmail}`);
+
+        // Remove any existing editors first
+        const currentEditors = protection.getEditors();
+        if (currentEditors.length > 0) {
+          protection.removeEditors(currentEditors);
+        }
+
+        // Add editors one by one
+        protection.addEditor(cleanEmail);
+        protection.addEditor(owner);
+        coordinators.forEach(coordinator => protection.addEditor(coordinator));
+
+        processedCount++;
+
+      } catch (e) {
+        Logger.log(`Error row ${row}: ${e}`);
       }
+    });
 
-      // Add editors one by one (CORRECT METHOD)
-      protection.addEditor(cleanEmail);
-      protection.addEditor(owner);
-      coordinators.forEach(coordinator => protection.addEditor(coordinator));
+    // Add delay between batches to avoid quota limits
+    if (i + BATCH_SIZE < emails.length) {
+      Utilities.sleep(2000); // 2 second delay between batches
+    }
+  }
 
-      unprotectedRanges.push(cell);
+  SpreadsheetApp.getUi().alert(`✅ Protection applied! Processed ${processedCount} cells. Students can only edit their own resume cells.`);
+}
 
+// 🔄 RESET AND APPLY CORRECT PROTECTIONS
+function resetAndProtect() {
+  // First remove all protections
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const protections = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE)
+    .concat(sheet.getProtections(SpreadsheetApp.ProtectionType.SHEET));
+
+  protections.forEach(prot => {
+    try {
+      prot.remove();
     } catch (e) {
-      Logger.log(`Error row ${row}: ${e}`);
+      // Silent catch
     }
   });
 
-  // Protect entire sheet but exclude resume column
-  if (unprotectedRanges.length > 0) {
-    const sheetProtection = sheet.protect()
-      .setDescription('Main Sheet Protection')
-      .setUnprotectedRanges(unprotectedRanges)
-      .setWarningOnly(false);
-
-    // Set editors for sheet protection
-    const currentEditors = sheetProtection.getEditors();
-    if (currentEditors.length > 0) {
-      sheetProtection.removeEditors(currentEditors);
-    }
-
-    sheetProtection.addEditor(owner);
-    coordinators.forEach(coordinator => sheetProtection.addEditor(coordinator));
-  }
-
-  SpreadsheetApp.getUi().alert('✅ Protection applied! Students can only edit their own resume cells.');
+  // Now apply the correct protections
+  protectResumeColumn();
 }
